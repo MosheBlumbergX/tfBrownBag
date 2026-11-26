@@ -17,8 +17,8 @@
 #
 #   2. An IAM role GitHub can assume via OIDC - no long-lived AWS keys in
 #      repository secrets. bootstrap/ creates the OIDC provider and the role,
-#      trusted only for this repo's pull_request and environment:production
-#      contexts. Apply it once by hand: terraform -chdir=bootstrap apply
+#      trusted only for this repo's pull_request, main-branch and
+#      environment:production contexts. Apply it once by hand: terraform -chdir=bootstrap apply
 #
 # Repository settings to create:
 #   Variables:   AWS_REGION

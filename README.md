@@ -321,11 +321,20 @@ It creates these, all tagged (plus the state bucket described in section 3):
   account can have only one. If yours already does, apply with
   `-var create_oidc_provider=false`.
 - the **role** `tfBrownBag-github-actions`, whose trust policy allows only this
-  repo (`var.github_repo`) and only two contexts: `pull_request` (the plan job)
-  and `environment:production` (the apply job, behind required reviewers).
+  repo and only three contexts: `pull_request` (the plan job
+  on a PR), `ref:refs/heads/main` (the plan job after a merge) and
+  `environment:production` (the apply job, behind required reviewers).
 - an `AdministratorAccess` attachment, because the demo builds VPCs, a Transit
   Gateway, EKS and IAM roles. Fine for a short-lived demo role, not for
   anything real.
+
+The trust policy names the repo the way GitHub's OIDC token does. New repos use
+an **immutable** subject, `repo:<owner>@<ownerID>/<repo>@<repoID>:...`, so a
+renamed or recreated repo cannot inherit the trust. A policy written with the
+plain `repo:<owner>/<repo>` never matches, and the workflow fails with `Not
+authorized to perform sts:AssumeRoleWithWebIdentity`. Get the right prefix with
+`gh api repos/<owner>/<repo>/actions/oidc/customization/sub -q .sub_claim_prefix`
+and pass it as `github_oidc_subject_prefix`.
 
 `AWS_ROLE_ARN` is a repository **secret**, not a variable, so the account ID in
 it is masked in public workflow logs. The other settings:

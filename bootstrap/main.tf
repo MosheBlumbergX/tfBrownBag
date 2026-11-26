@@ -35,15 +35,18 @@ data "aws_iam_policy_document" "trust" {
       values   = ["sts.amazonaws.com"]
     }
 
-    # Only this repo, and only the two contexts the workflow uses:
-    #   pull_request            the plan job
+    # Only this repo (by its immutable ID, see variables.tf), and only the
+    # contexts the workflow uses:
+    #   pull_request            the plan job on a PR
+    #   ref:refs/heads/main     the plan job after a merge
     #   environment:production  the apply job (behind required reviewers)
     condition {
       test     = "StringEquals"
       variable = "${local.oidc_url}:sub"
       values = [
-        "repo:${var.github_repo}:pull_request",
-        "repo:${var.github_repo}:environment:production",
+        "repo:${var.github_oidc_subject_prefix}:pull_request",
+        "repo:${var.github_oidc_subject_prefix}:ref:refs/heads/main",
+        "repo:${var.github_oidc_subject_prefix}:environment:production",
       ]
     }
   }

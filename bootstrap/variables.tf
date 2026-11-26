@@ -10,6 +10,12 @@ variable "github_repo" {
   default     = "MosheBlumbergX/tfBrownBag"
 }
 
+variable "github_oidc_subject_prefix" {
+  description = "How GitHub names this repo in its OIDC token. New repos use the immutable form owner@ownerID/repo@repoID, so renaming or recreating the repo cannot inherit the trust. Get it with: gh api repos/<owner>/<repo>/actions/oidc/customization/sub -q .sub_claim_prefix"
+  type        = string
+  default     = "MosheBlumbergX@23198209/tfBrownBag@1472996975"
+}
+
 variable "role_name" {
   description = "Name of the IAM role GitHub Actions assumes."
   type        = string
