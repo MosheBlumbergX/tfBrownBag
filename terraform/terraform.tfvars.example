@@ -1,0 +1,27 @@
+# Copy to terraform.tfvars and edit. terraform.tfvars is git-ignored and is
+# picked up automatically by every terraform command in this directory.
+#
+# Anything you leave out falls back to the `default` in variables.tf.
+
+# name   = "tf-brownbag"
+# region = "us-east-1"
+
+# --- Sizing ------------------------------------------------------------------
+# node_instance_type = "m5.xlarge"
+# node_count         = 2
+
+# --- Networking --------------------------------------------------------------
+# hub_vpc_cidr   = "10.40.0.0/16"
+# spoke_vpc_cidr = "10.42.0.0/16"
+
+# --- Mandatory tags ----------------------------------------------------------
+# Defaults are already set in variables.tf; override if you are not mblumberg
+# or if this outlives the date below.
+# owner_email     = "you@confluent.io"
+# owner_name      = "you"
+# cflt_managed_id = "tf-brownbag"
+# cflt_keep_until = "2026-12-03"
+
+# extra_tags = {
+#   cflt_environment = "devel"
+# }

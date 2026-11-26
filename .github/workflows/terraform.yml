@@ -1,0 +1,170 @@
+# --- Terraform in CI ----------------------------------------------------------
+# Brownbag topic 9: "GitHub integration".
+#
+# The same four commands you run locally, moved to where the team can see them:
+#
+#   pull request  ->  fmt check, validate, plan, and the plan posted as a
+#                     comment on the PR. Read-only: a plan needs credentials
+#                     but changes nothing.
+#   merge to main ->  apply, gated behind a GitHub Environment so a human has
+#                     to click approve.
+#
+# Two prerequisites, both one-offs:
+#
+#   1. Remote state. CI and your laptop must share one state file, or each
+#      will plan a full rebuild of what the other created.
+#      See terraform/backend.tf.example.
+#
+#   2. An IAM role GitHub can assume via OIDC - no long-lived AWS keys in
+#      repository secrets. Trust policy principal:
+#        arn:aws:iam::<account>:oidc-provider/token.actions.githubusercontent.com
+#      with sub = repo:<org>/<repo>:*
+#
+# Repository settings to create:
+#   Variables:   AWS_ROLE_ARN, AWS_REGION
+#   Secrets:     CONFLUENT_CLOUD_API_KEY, CONFLUENT_CLOUD_API_SECRET
+#   Environment: "production" with required reviewers
+
+name: terraform
+
+on:
+  pull_request:
+    paths: ["terraform/**", ".github/workflows/terraform.yml"]
+  push:
+    branches: [main]
+    paths: ["terraform/**", ".github/workflows/terraform.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write # required for OIDC
+  pull-requests: write # required to comment the plan
+
+env:
+  TF_IN_AUTOMATION: "true"
+  TF_INPUT: "false"
+  CONFLUENT_CLOUD_API_KEY: ${{ secrets.CONFLUENT_CLOUD_API_KEY }}
+  CONFLUENT_CLOUD_API_SECRET: ${{ secrets.CONFLUENT_CLOUD_API_SECRET }}
+
+jobs:
+  plan:
+    name: validate and plan
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: terraform
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.14.2
+          terraform_wrapper: false
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      # Formatting is a diff, so make CI own it rather than review comments.
+      - name: fmt
+        run: terraform fmt -check -recursive -diff
+
+      - name: init
+        run: terraform init
+
+      - name: validate
+        run: terraform validate -no-color
+
+      - name: plan
+        id: plan
+        run: |
+          terraform plan -no-color -out=tfplan | tee plan.txt
+          {
+            echo 'stdout<<PLAN_EOF'
+            # Trim to the last 200 lines: a PR comment caps at 65 536 chars.
+            tail -200 plan.txt
+            echo PLAN_EOF
+          } >>"$GITHUB_OUTPUT"
+
+      - name: comment the plan on the PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        env:
+          PLAN: ${{ steps.plan.outputs.stdout }}
+        with:
+          script: |
+            const body = `### \`terraform plan\`
+            <details><summary>show plan</summary>
+
+            \`\`\`terraform
+            ${process.env.PLAN}
+            \`\`\`
+
+            </details>
+
+            *by @${{ github.actor }} for \`${{ github.sha }}\`*`;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const previous = comments.find(c =>
+              c.user.type === 'Bot' && c.body.includes('### `terraform plan`'));
+
+            // Update in place so a busy PR does not collect ten stale plans.
+            if (previous) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner, repo: context.repo.repo,
+                comment_id: previous.id, body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner, repo: context.repo.repo,
+                issue_number: context.issue.number, body,
+              });
+            }
+
+      # Carry the exact plan forward, so apply cannot act on a different diff.
+      - name: upload the plan
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan
+          path: terraform/tfplan
+          retention-days: 5
+
+  apply:
+    name: apply
+    needs: plan
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    # Required reviewers on this environment are what make the apply a
+    # deliberate act rather than a side effect of merging.
+    environment: production
+    defaults:
+      run:
+        working-directory: terraform
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.14.2
+          terraform_wrapper: false
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: tfplan
+          path: terraform
+
+      - run: terraform init
+
+      - name: apply
+        run: terraform apply -no-color tfplan

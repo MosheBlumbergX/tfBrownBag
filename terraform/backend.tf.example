@@ -1,0 +1,36 @@
+# --- Remote state ------------------------------------------------------------
+# Brownbag topic 3: "Terraform state", part two.
+#
+# Out of the box, state is a terraform.tfstate file next to this one. That is
+# fine for a laptop demo and wrong for everything else:
+#
+#   * it holds every secret this config touched, in plain text
+#   * it is not shared, so your colleague's plan does not see your apply
+#   * nothing stops two applies running at the same time
+#
+# Copy this file to backend.tf, create the bucket once, and run
+# `terraform init -migrate-state`. S3 native locking (use_lockfile) replaced
+# the old DynamoDB lock table, so the bucket really is the only prerequisite.
+#
+#   aws s3api create-bucket --bucket my-tfstate-bucket --region us-east-1
+#   aws s3api put-bucket-versioning --bucket my-tfstate-bucket \
+#     --versioning-configuration Status=Enabled
+#   aws s3api put-bucket-encryption --bucket my-tfstate-bucket \
+#     --server-side-encryption-configuration \
+#     '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"aws:kms"}}]}'
+#
+# Versioning gives you a way back from a bad apply; encryption is what keeps
+# the secrets in state from being readable by anyone with s3:GetObject.
+#
+# The GitHub Actions workflow in .github/workflows/terraform.yml assumes this
+# is in place: CI and your laptop must share one state file or they will fight.
+
+# terraform {
+#   backend "s3" {
+#     bucket       = "my-tfstate-bucket"
+#     key          = "tf-brownbag/terraform.tfstate"
+#     region       = "us-east-1"
+#     encrypt      = true
+#     use_lockfile = true
+#   }
+# }
