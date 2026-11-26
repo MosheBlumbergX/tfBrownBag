@@ -1,0 +1,12 @@
+# Who may do what on which topic. This file is the access policy: a pull request
+# that edits it is an access request, and the Terraform plan on that PR is what
+# the reviewer approves. See access.tf.
+#
+#   access: read   -> DeveloperRead on the topic, plus the team's consumer groups
+#                     (group names must start with "<team>-")
+#   access: write  -> DeveloperWrite on the topic
+teams:
+  payments:
+    topics:
+      - name: orders
+        access: write

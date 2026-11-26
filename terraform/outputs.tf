@@ -61,3 +61,8 @@ output "ccloud_console_url" {
   description = "Deep link to this environment in the Confluent Cloud Console."
   value       = "https://confluent.cloud/environments/${confluent_environment.demo.id}/clusters/${confluent_kafka_cluster.demo.id}"
 }
+
+output "team_service_accounts" {
+  description = "Service account ID per team in teams.yaml."
+  value       = { for team, sa in confluent_service_account.team : team => sa.id }
+}

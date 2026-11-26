@@ -592,6 +592,32 @@ Both of these cost an hour of confusion the first time. Worth ten seconds here.
 
 ---
 
+# Access as data, contracts as files
+
+<div class="grid grid-cols-2 gap-8 mt-8">
+<div class="card accent">
+  <div class="card-k">access.tf</div>
+  <h3>A PR is an access request</h3>
+  <p><code>teams.yaml</code> becomes service accounts and role bindings with <code>yamldecode</code> and <code>for_each</code>. The plan lists exactly the identities and permissions the YAML creates.</p>
+</div>
+<div class="card">
+  <div class="card-k">schemas.tf</div>
+  <h3>A breaking schema never applies</h3>
+  <p>Every <code>.avsc</code> file is a subject, pinned to <code>BACKWARD</code>. A new required field fails the <em>plan</em>, on the PR.</p>
+</div>
+</div>
+
+<div v-click class="statement mt-10 text-center">
+Review the <span class="grad">plan</span>, not the click-path.
+</div>
+
+<!--
+Live: add the analytics team in a PR, show the 3-resource plan comment, merge,
+approve. Then break the schema and show the PR failing.
+-->
+
+---
+
 # Networking: hub, spoke, and one door
 
 <div class="chain mt-10">

@@ -98,6 +98,9 @@ the split is purely for humans:
 | `eks.tf` | the EKS cluster, addons and node group |
 | `privatelink.tf` | the Confluent gateway → VPC endpoint → access point → Route53 chain |
 | `confluent.tf` | environment and Enterprise cluster |
+| `tags.tf` | Confluent Cloud tags and the Schema Registry key they need |
+| `access.tf` | team access as data: `teams.yaml` becomes service accounts and role bindings |
+| `schemas.tf` | data contracts: every `schemas/*.avsc` is registered, with BACKWARD compatibility |
 | `locals.tf` | the mandatory tag set, defined once |
 | `outputs.tf` | what the rest of the repo is allowed to read |
 
@@ -350,6 +353,71 @@ terraform -chdir=bootstrap destroy
 ```
 
 Destroy it before the `cflt_keep_until` date.
+
+### 10. Confluent as code: access and schemas - `access.tf`, `schemas.tf`
+
+Two changes a team would really ask for, both reachable from a GitHub runner
+despite the private cluster, because they use the public control plane and the
+Schema Registry endpoint (topics themselves cannot, see below).
+
+**Access is data.** `terraform/teams.yaml` lists teams and the topics they may
+use. `access.tf` reads it with `yamldecode` and fans it out with `for_each`: one
+service account per team, one role binding per team and topic, plus consumer-group
+rights for readers.
+
+```yaml
+teams:
+  payments:
+    topics:
+      - name: orders
+        access: write        # DeveloperWrite
+  analytics:                 # <- the PR adds these four lines
+    topics:
+      - name: orders
+        access: read         # DeveloperRead + groups named analytics-*
+```
+
+The plan on that PR is the access request, in full:
+
+```
++ confluent_service_account.team["analytics"]
++ confluent_role_binding.team_topic["analytics/orders"]   DeveloperRead on topic=orders
++ confluent_role_binding.team_group["analytics"]          DeveloperRead on group=analytics-*
+Plan: 3 to add, 0 to change, 0 to destroy.
+```
+
+A typo fails the plan on the PR, with a message the author can act on
+(`teams.yaml: analytics/orders has access 'reed'. Use 'read' or 'write'.`). A
+role binding on a topic name is valid before the topic exists.
+
+**Contracts are files.** Every `terraform/schemas/*.avsc` is registered in Schema
+Registry; the file name is the subject (`orders-value.avsc` is the value schema
+for topic `orders`) and compatibility is pinned to `BACKWARD` in code.
+
+- Add an optional field with a default: the plan shows `~ confluent_schema.this["orders-value"]`
+  updated in place, and the apply registers version 2.
+- Add a required field with no default: the plan **fails**, on the PR:
+
+  ```
+  Error: error validating Schema: ... READER_FIELD_MISSING_DEFAULT_VALUE,
+  "The field 'channel' ... has no default value and is missing in the old schema"
+  ```
+
+  The provider checks the new schema against the registered version, so a change
+  that would break existing consumers never reaches an apply.
+
+**Why not the topic itself.** `confluent_kafka_topic` and its configs
+(`retention.ms`, `cleanup.policy`) go through the cluster's Admin REST endpoint,
+which is PrivateLink-only here. A laptop or a GitHub-hosted runner has no path to
+it, so topics are the next layer's job, run from inside the VPC.
+
+**Try it as a PR** (the live demo):
+
+1. Branch, add the `analytics` block to `teams.yaml`, push, open the PR.
+2. The plan comment shows the three additions. Merge, approve the `production`
+   deployment, and the identities exist.
+3. Second PR: add a `channel` field to `orders-value.avsc` with a default (applies),
+   then without a default (the plan fails).
 
 ---
 
