@@ -81,11 +81,32 @@ jobs:
       - name: plan
         id: plan
         run: |
-          terraform plan -no-color -out=tfplan | tee plan.txt
+          # No pipefail by default in Actions: without it, `terraform plan | tee`
+          # would report tee's exit code and a failing plan would look green.
+          # So capture the real exit code, post the comment either way, and
+          # fail the job in the step after it.
+          set +e
+          terraform plan -no-color -out=tfplan 2>&1 | tee plan.txt
+          code=${PIPESTATUS[0]}
+          set -e
+
+          if [ "$code" -eq 0 ]; then
+            # Start the comment at the diff, not at 130 "Refreshing state..." lines.
+            sed -n '/^Terraform used the selected providers\|^No changes\./,$p' plan.txt >plan-comment.txt
+            summary=$(grep -E '^(Plan:|No changes)' plan.txt | tail -1)
+          else
+            tail -60 plan.txt >plan-comment.txt
+            summary="Plan FAILED (exit code $code)"
+          fi
+          [ -s plan-comment.txt ] || tail -60 plan.txt >plan-comment.txt
+
           {
+            echo "exit_code=$code"
+            echo "summary=$summary"
             echo 'stdout<<PLAN_EOF'
-            # Trim to the last 200 lines: a PR comment caps at 65 536 chars.
-            tail -200 plan.txt
+            # A PR comment caps at 65 536 chars.
+            head -c 60000 plan-comment.txt
+            echo
             echo PLAN_EOF
           } >>"$GITHUB_OUTPUT"
 
@@ -94,9 +115,12 @@ jobs:
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         env:
           PLAN: ${{ steps.plan.outputs.stdout }}
+          SUMMARY: ${{ steps.plan.outputs.summary }}
         with:
           script: |
             const body = `### \`terraform plan\`
+            **${process.env.SUMMARY}**
+
             <details><summary>show plan</summary>
 
             \`\`\`terraform
@@ -127,6 +151,12 @@ jobs:
                 issue_number: context.issue.number, body,
               });
             }
+
+      # The comment is posted even when the plan fails, so the author sees why;
+      # this is the step that makes the check go red.
+      - name: fail if the plan failed
+        if: steps.plan.outputs.exit_code != '0'
+        run: exit 1
 
       # Carry the exact plan forward, so apply cannot act on a different diff.
       - name: upload the plan
