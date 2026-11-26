@@ -2,6 +2,38 @@
 # The spoke cluster: where your workloads would run. Here it is the "client" end
 # of the private path to Confluent Cloud. Nothing stateful, so deliberately small.
 
+# Who administers the cluster: the SSO role you run Terraform with on a laptop,
+# and the role GitHub Actions assumes (created by ../bootstrap). Both are looked
+# up, so no account ID is written in this repo.
+data "aws_iam_roles" "sso_admin" {
+  name_regex  = "^AWSReservedSSO_${var.eks_admin_sso_permission_set}_"
+  path_prefix = "/aws-reserved/sso.amazonaws.com/"
+}
+
+data "aws_iam_role" "ci" {
+  name = var.ci_role_name
+}
+
+locals {
+  eks_admin_principals = {
+    sso = one(data.aws_iam_roles.sso_admin.arns)
+    ci  = data.aws_iam_role.ci.arn
+  }
+}
+
+# The CI role already holds the old "cluster_creator" entry. Keep it under its new
+# name, or Terraform would try to create a second entry for the same principal
+# before deleting the first, and EKS would refuse.
+moved {
+  from = module.eks.aws_eks_access_entry.this["cluster_creator"]
+  to   = module.eks.aws_eks_access_entry.this["ci"]
+}
+
+moved {
+  from = module.eks.aws_eks_access_policy_association.this["cluster_creator_admin"]
+  to   = module.eks.aws_eks_access_policy_association.this["ci_admin"]
+}
+
 module "eks" {
   source  = "terraform-aws-modules/eks/aws"
   version = "~> 21.0"
@@ -11,8 +43,29 @@ module "eks" {
 
   # Public API endpoint so kubectl on this laptop works without a
   # bastion. The data plane stays in private subnets.
-  endpoint_public_access                   = true
-  enable_cluster_creator_admin_permissions = true
+  endpoint_public_access = true
+
+  # Cluster admin is granted to named principals, not to "whoever ran the apply".
+  # With enable_cluster_creator_admin_permissions the module hands admin (and the
+  # KMS key administrator role) to the caller, so the identity that last applied
+  # silently locked the other one out: CI took over from the laptop and
+  # kubectl returned Unauthorized. Explicit principals make an apply from either
+  # place produce the same state.
+  enable_cluster_creator_admin_permissions = false
+
+  access_entries = {
+    for key, arn in local.eks_admin_principals : key => {
+      principal_arn = arn
+      policy_associations = {
+        admin = {
+          policy_arn   = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+          access_scope = { type = "cluster" }
+        }
+      }
+    }
+  }
+
+  kms_key_administrators = values(local.eks_admin_principals)
 
   vpc_id     = module.spoke_vpc.vpc_id
   subnet_ids = module.spoke_vpc.private_subnets

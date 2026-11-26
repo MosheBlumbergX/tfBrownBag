@@ -52,6 +52,18 @@ variable "node_instance_type" {
   default     = "m5.xlarge"
 }
 
+variable "eks_admin_sso_permission_set" {
+  description = "Name of the IAM Identity Center permission set whose role gets EKS cluster admin when you run Terraform from a laptop."
+  type        = string
+  default     = "nonprod-administrator"
+}
+
+variable "ci_role_name" {
+  description = "IAM role GitHub Actions assumes (created by ../bootstrap). It also gets EKS cluster admin."
+  type        = string
+  default     = "tfBrownBag-github-actions"
+}
+
 variable "node_count" {
   description = "Number of worker nodes."
   type        = number

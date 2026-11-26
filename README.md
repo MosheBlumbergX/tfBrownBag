@@ -439,6 +439,20 @@ REST endpoint is PrivateLink-only, so Terraform - on a laptop or on a GitHub
 runner - cannot reach it. Topics and clients are the next layer's job, run from
 somewhere inside the VPC. This demo deliberately stops before that.
 
+### Who administers the cluster
+
+`eks.tf` names its administrators: your SSO role (looked up by permission-set
+name) and the CI role from `bootstrap/`. The community module's default,
+`enable_cluster_creator_admin_permissions`, grants admin to **whoever ran the
+apply**, and the KMS key policy follows the same caller. With CI and a laptop
+both applying, the last one to apply took the access from the other:
+`kubectl` returned `Unauthorized` after CI's first apply, and every laptop plan
+wanted to flip it back. Naming the principals makes an apply from either place
+produce the same state.
+
+If `kubectl` says `Unauthorized`, check `aws eks list-access-entries
+--cluster-name tf-brownbag` for your role.
+
 ### Networking: Enterprise clusters and Transit Gateway
 
 A Confluent Cloud *Enterprise* cluster is serverless and private-only, reached
