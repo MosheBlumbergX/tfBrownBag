@@ -12,7 +12,8 @@
 # `terraform init -migrate-state`. S3 native locking (use_lockfile) replaced
 # the old DynamoDB lock table, so the bucket really is the only prerequisite.
 #
-#   aws s3api create-bucket --bucket my-tfstate-bucket --region us-east-1
+#   aws s3api create-bucket --bucket my-tfstate-bucket --region eu-central-1 \
+#     --create-bucket-configuration LocationConstraint=eu-central-1
 #   aws s3api put-bucket-versioning --bucket my-tfstate-bucket \
 #     --versioning-configuration Status=Enabled
 #   aws s3api put-bucket-encryption --bucket my-tfstate-bucket \
@@ -29,7 +30,7 @@
 #   backend "s3" {
 #     bucket       = "my-tfstate-bucket"
 #     key          = "tf-brownbag/terraform.tfstate"
-#     region       = "us-east-1"
+#     region       = "eu-central-1"
 #     encrypt      = true
 #     use_lockfile = true
 #   }

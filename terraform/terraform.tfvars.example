@@ -4,7 +4,7 @@
 # Anything you leave out falls back to the `default` in variables.tf.
 
 # name   = "tf-brownbag"
-# region = "us-east-1"
+# region = "eu-central-1"
 
 # --- Sizing ------------------------------------------------------------------
 # node_instance_type = "m5.xlarge"

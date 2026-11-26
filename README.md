@@ -52,7 +52,8 @@ To use kubectl against the demo cluster: `export KUBECONFIG=$PWD/.kubeconfig`.
 | 2 | `make status` | Terraform outputs and EKS nodes |
 | 3 | `make verify` | Resolve and connect to the private cluster from inside the VPC |
 
-Tear it all down with `make down`.
+Tear it all down with `make down`. If you set up CI, also run
+`terraform -chdir=bootstrap destroy` (see section 9).
 
 ### Prerequisites
 
@@ -222,6 +223,57 @@ The same commands, moved to where the team can see them:
 The comments at the top of the workflow list the variables, secrets and
 environment to create.
 
+#### One-off setup: the AWS role (`bootstrap/`)
+
+CI needs an IAM role before it can run `terraform/`, so the role cannot be
+created by the pipeline that depends on it. `bootstrap/` is a tiny separate
+configuration with its own local state, applied once by hand:
+
+```bash
+export AWS_PROFILE=<your sandbox profile>
+terraform -chdir=bootstrap init
+terraform -chdir=bootstrap apply
+gh secret set AWS_ROLE_ARN -R <owner>/<repo> --body "$(terraform -chdir=bootstrap output -raw role_arn)"
+```
+
+It creates three things, all tagged:
+
+- the GitHub **OIDC provider** (`token.actions.githubusercontent.com`). An
+  account can have only one. If yours already does, apply with
+  `-var create_oidc_provider=false`.
+- the **role** `tfBrownBag-github-actions`, whose trust policy allows only this
+  repo (`var.github_repo`) and only two contexts: `pull_request` (the plan job)
+  and `environment:production` (the apply job, behind required reviewers).
+- an `AdministratorAccess` attachment, because the demo builds VPCs, a Transit
+  Gateway, EKS and IAM roles. Fine for a short-lived demo role, not for
+  anything real.
+
+`AWS_ROLE_ARN` is a repository **secret**, not a variable, so the account ID in
+it is masked in public workflow logs. The other settings:
+
+| Where | Name |
+|---|---|
+| Variable | `AWS_REGION` |
+| Secrets | `AWS_ROLE_ARN`, `CONFLUENT_CLOUD_API_KEY`, `CONFLUENT_CLOUD_API_SECRET` |
+| Environment | `production`, with required reviewers |
+
+Anyone with write access to this repo can open a PR from a branch and get the
+role during the plan job. This is a personal repo with a single collaborator
+(its owner), so today that is one person; **adding a collaborator extends the
+role to them.** Fork PRs cannot obtain an OIDC token, and outside contributors'
+workflow runs need the owner's approval (Settings > Actions > General). The
+third-party actions in the workflow are pinned to commit SHAs, so a moved tag
+cannot change what runs with the role.
+
+**Tearing it down.** `make down` does not touch `bootstrap/`, because it has a
+separate state. Destroy it last, once nothing else needs CI:
+
+```bash
+terraform -chdir=bootstrap destroy
+```
+
+Destroy it before the `cflt_keep_until` date.
+
 ---
 
 ## Design notes
@@ -251,7 +303,7 @@ The resolution path, worth drawing on a whiteboard:
 
 ```
 pod in the spoke
-  → *.ap-xxxx.us-east-1.aws.accesspoint.confluent.cloud   (Route53 private zone)
+  → *.ap-xxxx.eu-central-1.aws.accesspoint.confluent.cloud   (Route53 private zone)
   → CNAME to the VPC endpoint's regional DNS name
   → private IPs of the ENIs in the hub's subnets
   → Transit Gateway
@@ -298,6 +350,7 @@ name are untested.
 
 ```
 terraform/          AWS + Confluent Cloud. The subject of the talk.
+bootstrap/          One-off: the GitHub OIDC provider and the CI role.
 scripts/            infra, plan, preflight, status, verify, down.
 slides/             Slidev deck for the session (make slides).
 .github/workflows/  plan on PR, apply on merge.

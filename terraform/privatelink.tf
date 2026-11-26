@@ -88,7 +88,7 @@ resource "confluent_access_point" "hub" {
 }
 
 locals {
-  # e.g. ap-abc123.us-east-1.aws.accesspoint.confluent.cloud
+  # e.g. ap-abc123.eu-central-1.aws.accesspoint.confluent.cloud
   ccloud_dns_domain = confluent_access_point.hub.aws_ingress_private_link_endpoint[0].dns_domain
 
   # Confluent publishes cluster endpoints under the ".glb." variant, which

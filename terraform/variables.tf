@@ -21,7 +21,7 @@ variable "name" {
 variable "region" {
   description = "AWS region. The Confluent Cloud gateway, and Enterprise cluster all live in the same region."
   type        = string
-  default     = "us-east-1"
+  default     = "eu-central-1"
 }
 
 # --- Networking --------------------------------------------------------------

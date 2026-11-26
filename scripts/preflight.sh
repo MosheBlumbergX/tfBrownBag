@@ -12,7 +12,7 @@
 source "$(dirname "$0")/lib.sh"
 require aws jq curl
 
-REGION="${TF_VAR_region:-${DEMO_REGION:-us-east-1}}"
+REGION="${TF_VAR_region:-${DEMO_REGION:-eu-central-1}}"
 fail=0
 
 ok()   { printf '  \033[32m✓\033[0m %s\n' "$*"; }
