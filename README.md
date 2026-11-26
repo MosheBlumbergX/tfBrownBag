@@ -130,6 +130,78 @@ terraform -chdir=terraform state list
 terraform -chdir=terraform state show confluent_kafka_cluster.demo
 ```
 
+**`state list`** prints one line per thing Terraform is tracking: 132 here. A
+trimmed sample (the EKS and VPC modules account for most of the rest):
+
+```
+data.confluent_schema_registry_cluster.demo
+aws_ec2_transit_gateway.this
+aws_route.hub_to_spoke["0"]
+aws_vpc_endpoint.ccloud
+confluent_access_point.hub
+confluent_gateway.ingress
+confluent_kafka_cluster.demo
+confluent_tag_binding.this["cflt_keep_until/cluster"]
+module.eks.aws_eks_cluster.this[0]
+```
+
+How to read an address, `[module.<name>.][data.]<type>.<name>[<key>]`:
+
+- `aws_...` and `confluent_...` are the two providers: one state file, two clouds.
+- `data.` entries are read, not created. Terraform looks them up (Schema Registry,
+  availability zones) and destroys nothing when you run `make down`.
+- `module.eks....` is a resource inside a module. The module is the community
+  EKS module, so its internals appear under that prefix.
+- `["0"]` and `["cflt_keep_until/cluster"]` are `count` and `for_each` instances.
+  The key is how Terraform addresses each copy, which is why `for_each` keys
+  must be known at plan time (section 2).
+- If a resource is missing from this list, Terraform does not know it exists. It
+  will not update it, and it will not destroy it.
+
+**`state show`** prints what Terraform recorded for one resource (the
+`rbac_crn` line, which carries your organisation ID, is left out here):
+
+```
+# confluent_kafka_cluster.demo:
+resource "confluent_kafka_cluster" "demo" {
+    availability        = "LOW"
+    cloud               = "AWS"
+    deletion_protection = false
+    display_name        = "tf-brownbag"
+    id                  = "lkc-gq2nr3v"
+    region              = "eu-central-1"
+    bootstrap_endpoint  = "lkc-gq2nr3v.eu-central-1.aws.private.confluent.cloud:9092"
+    endpoints           = [
+        { access_point_id = "PRIVATE_LINK", connection_type = "PRIVATE_LINK", ... },
+        { access_point_id = "ap-8m67qz",    connection_type = "PRIVATE_LINK",
+          bootstrap_endpoint = "lkc-gq2nr3v-ap8m67qz.eu-central-1.aws.accesspoint.glb.confluent.cloud:9092", ... },
+    ]
+    enterprise { max_ecku = 32 }
+    environment { id = "env-g7p8rr" }
+    network { id = null }
+}
+```
+
+- **Two kinds of attribute.** `availability`, `cloud`, `region` and `display_name`
+  are what `confluent.tf` set. `id` (`lkc-...`), the endpoints and `max_ecku` were
+  filled in by Confluent after the create. That is why they are `(known after
+  apply)` in a plan, and why `outputs.tf` can publish them.
+- **Two endpoints, one cluster.** The first is Confluent's default private
+  endpoint. The second belongs to our access point (`ap-8m67qz`) and is the one
+  that resolves to the hub VPC. `locals.cluster_endpoint` in `confluent.tf` picks
+  it by `access_point_id`, so this one line of state is what `make verify` ends
+  up connecting to.
+- **`null` blocks.** `network { id = null }` and `byok_key` are unused: an
+  Enterprise cluster has no dedicated network to attach.
+- **`deletion_protection = false`** is why `make down` can remove the cluster.
+
+The state itself is a single object in S3. To see it there (this needs your AWS
+credentials, for example `AWS_PROFILE=<your profile>`):
+
+```bash
+aws s3 ls s3://tfbrownbag-tfstate-mblumberg/tf-brownbag/terraform.tfstate --region eu-central-1
+```
+
 Two things people learn the hard way:
 
 - **State contains secrets in plain text.** Provider credentials and
