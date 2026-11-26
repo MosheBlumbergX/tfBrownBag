@@ -12,8 +12,8 @@
 # Two prerequisites, both one-offs:
 #
 #   1. Remote state. CI and your laptop must share one state file, or each
-#      will plan a full rebuild of what the other created.
-#      See terraform/backend.tf.example.
+#      will plan a full rebuild of what the other created. terraform/backend.tf
+#      points at an S3 bucket that bootstrap/ creates (see terraform/backend.tf.example).
 #
 #   2. An IAM role GitHub can assume via OIDC - no long-lived AWS keys in
 #      repository secrets. bootstrap/ creates the OIDC provider and the role,

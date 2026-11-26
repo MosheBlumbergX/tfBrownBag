@@ -20,7 +20,7 @@ echo
 
 kubectl run ccloud-verify --rm -i --restart=Never --quiet \
   --image=busybox:1.37 --command -- sh -c "
-    nslookup $HOST | awk '/^Address/ && !/#/ {print \"  resolves to \" \$2}'
+    nslookup $HOST | awk '/^Address/ && !/#/ && !/:53$/ {print \"  resolves to \" \$2}'
     if nc -z -w 5 $HOST $PORT; then
       echo '  tcp/$PORT: open'
     else

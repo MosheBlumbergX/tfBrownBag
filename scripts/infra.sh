@@ -13,7 +13,7 @@ aws sts get-caller-identity >/dev/null 2>&1 ||
   { echo "No usable AWS credentials. Run 'aws sso login' first." >&2; exit 1; }
 
 log "terraform init"
-terraform -chdir="$TF_DIR" init -upgrade -input=false >/dev/null
+terraform -chdir="$TF_DIR" init -input=false >/dev/null
 
 if [[ -f "$TF_DIR/tfplan" ]]; then
   log "applying the saved plan (terraform/tfplan)"

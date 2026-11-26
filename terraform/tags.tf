@@ -22,9 +22,10 @@ locals {
     } : k => lower("${k}_${replace(v, "/[^a-zA-Z0-9_]/", "_")}")
   }
 
-  # What gets tagged: entity_type => entity_name.
-  # The environment binding is the tested one. The cluster binding follows the
-  # Stream Catalog entity-type docs and has not been applied yet.
+  # What gets tagged: entity_type => entity_name. Both names are prefixed with
+  # the Schema Registry cluster ID. For the cluster, the docs show a bare lkc-
+  # ID, but the API stores (and plan reports) lsrc-...:lkc-..., so a bare ID
+  # shows as a permanent in-place change.
   catalog_entities = {
     environment = {
       type = "cf_environment"
@@ -32,7 +33,7 @@ locals {
     }
     cluster = {
       type = "kafka_logical_cluster"
-      name = confluent_kafka_cluster.demo.id
+      name = "${data.confluent_schema_registry_cluster.demo.id}:${confluent_kafka_cluster.demo.id}"
     }
   }
 

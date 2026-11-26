@@ -53,3 +53,12 @@ require() {
 
 # --- Terraform outputs -------------------------------------------------------
 tf_out() { terraform -chdir="$TF_DIR" output -raw "$1"; }
+
+# --- Confluent Cloud REST ----------------------------------------------------
+ccloud_api() {
+  local method=$1 path=$2
+  shift 2
+  curl -sS -u "$CONFLUENT_CLOUD_API_KEY:$CONFLUENT_CLOUD_API_SECRET" \
+    -X "$method" -H 'Content-Type: application/json' \
+    "https://api.confluent.cloud$path" "$@"
+}

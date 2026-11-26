@@ -24,8 +24,7 @@ override.tf.json
 *_override.tf.json
 # Do commit the lock file: it is what makes a plan reproducible.
 !.terraform.lock.hcl
-# backend.tf is per-team; backend.tf.example is the documented template.
-terraform/backend.tf
+# terraform/backend.tf is committed: CI needs it. The state bucket is created by bootstrap/.
 
 # --- Local scratch -----------------------------------------------------------
 .kubeconfig
@@ -39,3 +38,6 @@ graph.svg
 .vscode/
 *.swp
 *~
+
+# Claude Code personal settings
+.claude/settings.local.json

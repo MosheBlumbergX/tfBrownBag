@@ -135,10 +135,14 @@ Two things people learn the hard way:
 - **State contains secrets in plain text.** Provider credentials and
   anything marked sensitive end up in there. Marking an output `sensitive` hides it from the CLI, not from
   the file.
-- **Local state does not scale past one person.** `backend.tf.example` has a
-  copy-paste S3 backend with versioning, encryption and native locking
-  (`use_lockfile = true`, no DynamoDB table any more). CI and your laptop must
-  share one state file or they will each plan to rebuild the other's work.
+- **Local state does not scale past one person.** This repo's
+  `terraform/backend.tf` stores state in a versioned, KMS-encrypted, private S3
+  bucket with native locking (`use_lockfile = true`, no DynamoDB table any more).
+  The bucket is created by `bootstrap/` (`state.tf`), because a configuration
+  cannot keep its state in a bucket it has not created yet. CI and your laptop
+  share the one state file, or they would each plan to rebuild the other's work.
+  `backend.tf.example` is the template for your own project. Moving from local to
+  S3 is `terraform init -migrate-state`.
 
 ### 4. Terraform variables - `terraform/variables.tf`
 
@@ -236,7 +240,7 @@ terraform -chdir=bootstrap apply
 gh secret set AWS_ROLE_ARN -R <owner>/<repo> --body "$(terraform -chdir=bootstrap output -raw role_arn)"
 ```
 
-It creates three things, all tagged:
+It creates these, all tagged (plus the state bucket described in section 3):
 
 - the GitHub **OIDC provider** (`token.actions.githubusercontent.com`). An
   account can have only one. If yours already does, apply with
@@ -266,7 +270,8 @@ third-party actions in the workflow are pinned to commit SHAs, so a moved tag
 cannot change what runs with the role.
 
 **Tearing it down.** `make down` does not touch `bootstrap/`, because it has a
-separate state. Destroy it last, once nothing else needs CI:
+separate state. Destroy it last, once nothing else needs CI. This also deletes
+the state bucket (`force_destroy`), so run `make down` first:
 
 ```bash
 terraform -chdir=bootstrap destroy

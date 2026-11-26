@@ -8,7 +8,8 @@
 #   * it is not shared, so your colleague's plan does not see your apply
 #   * nothing stops two applies running at the same time
 #
-# Copy this file to backend.tf, create the bucket once, and run
+# This repo already has a backend.tf pointing at the bucket that bootstrap/ creates.
+# For your own project: copy this file to backend.tf, create the bucket once, and run
 # `terraform init -migrate-state`. S3 native locking (use_lockfile) replaced
 # the old DynamoDB lock table, so the bucket really is the only prerequisite.
 #
