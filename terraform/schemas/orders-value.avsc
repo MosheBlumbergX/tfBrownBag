@@ -6,6 +6,7 @@
     { "name": "order_id", "type": "string" },
     { "name": "customer_id", "type": "string" },
     { "name": "amount", "type": "double" },
-    { "name": "currency", "type": "string", "default": "GBP" }
+    { "name": "currency", "type": "string", "default": "GBP" },
+    { "name": "channel", "type": "string", "default": "web" }
   ]
 }
