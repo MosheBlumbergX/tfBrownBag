@@ -10,3 +10,7 @@ teams:
     topics:
       - name: orders
         access: write
+  analytics:
+    topics:
+      - name: orders
+        access: read
